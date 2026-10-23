@@ -10,6 +10,7 @@ import {
   linearToULaw,
 } from '../src/pcm/convert.ts';
 import { Writer } from '../src/io/writer.ts';
+import { decodeImaAdpcm } from '../src/pcm/adpcm.ts';
 import { DecodeError, LimitExceededError } from '../src/errors.ts';
 import type { SampleFormat } from '../src/types.ts';
 import {
@@ -367,5 +368,14 @@ describe('G.711 interop against the ITU reference', () => {
       assert.equal(linearToALaw(input), ALAW_ENCODE_REFERENCE[i], `A-law of ${input}`);
       assert.equal(linearToULaw(input), ULAW_ENCODE_REFERENCE[i], `µ-law of ${input}`);
     }
+  });
+});
+
+describe('IMA ADPCM', () => {
+  test('reconstruction sums separately truncated shifts, as the IMA reference does', () => {
+    // Predictor 0, step 7, nibbles 1 then 7. A single multiply would give [0, 2, 15].
+    const block = Uint8Array.of(0, 0, 0, 0, 0x71, 0, 0, 0);
+    const [mono] = decodeImaAdpcm(block, 1, 8, 3);
+    assert.deepEqual(Array.from(mono!, (v) => v * 32768), [0, 1, 12]);
   });
 });

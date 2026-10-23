@@ -353,7 +353,7 @@ against the reference implementations, and those checks run in CI:
 | --- | --- | --- |
 | WAV, all sample formats | ffmpeg decodes our files | **bit-exact** |
 | A-law / µ-law | CPython `audioop` (the ITU G.711 reference) | **0 mismatches** in 2,028 vectors |
-| IMA ADPCM | ffmpeg | **sample-exact** |
+| IMA ADPCM | IMA reference formula; ffmpeg 8.1+ (older ffmpeg: within 64 LSB) | **sample-exact** |
 | FLAC | reference `flac -t`, which verifies the embedded MD5 | **passes** at every level |
 | FLAC decode | reference `flac` decoder | **identical** |
 | EBU R128 loudness | ffmpeg `ebur128` | within **0.03 dB** |

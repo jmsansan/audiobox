@@ -101,11 +101,6 @@ export function decodeImaAdpcm(
       written += advanced;
       offset += 4 * channels;
     }
-
-    // Skip any frames the block declared but the buffer did not contain.
-    if (produced < perBlock) {
-      written += 0;
-    }
   }
 
   return out;
@@ -119,21 +114,12 @@ function decodeNibble(
   stepIndices: Int32Array,
 ): number {
   const step = STEP_TABLE[stepIndices[channel]!]!;
-  const delta = nibble & 7;
-
-  // Two reconstruction formulas exist in the wild and they are not equivalent:
-  //
-  //   a) the original IMA reference accumulates separately-truncated shifts
-  //      (step>>3, +step>>2, +step>>1, +step)
-  //   b) a single multiply, ((2*delta + 1) * step) >> 3
-  //
-  // (b) truncates once instead of four times, so it differs from (a) by up to
-  // 2 LSB per nibble — and because the result feeds the predictor, that error
-  // accumulates across the block rather than staying local. ffmpeg, Microsoft's
-  // documentation, and effectively every shipping decoder use (b), so (b) is
-  // what makes our output match what listeners actually hear. Verified
-  // sample-exact against ffmpeg's adpcm_ima_wav decoder.
-  const diff = ((2 * delta + 1) * step) >> 3;
+  // The IMA reference sums separately truncated shifts, as ffmpeg 8.1+ does. A single multiply,
+  // ((2 * (nibble & 7) + 1) * step) >> 3, runs up to 2 LSB larger and the error accumulates.
+  let diff = step >> 3;
+  if (nibble & 4) diff += step;
+  if (nibble & 2) diff += step >> 1;
+  if (nibble & 1) diff += step >> 2;
 
   let predictor = predictors[channel]! + (nibble & 8 ? -diff : diff);
   if (predictor > 32767) predictor = 32767;

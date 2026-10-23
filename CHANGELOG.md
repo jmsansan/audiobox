@@ -5,6 +5,15 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- **IMA ADPCM decoding** now follows the IMA reference reconstruction, which sums separately
+  truncated shifts, instead of a single multiply that drifted up to a few hundred LSB from it
+  within a block. Output matches ffmpeg 8.1 and later sample for sample; earlier ffmpeg still
+  uses the multiply and differs slightly.
+
 ## [1.1.0] — 2026-08-04
 
 ### Added
@@ -97,5 +106,6 @@ First release.
 - Streaming resampling processes each chunk independently, so filter state does not carry
   across chunk boundaries.
 
+[Unreleased]: https://github.com/jmsansan/audiobox/compare/v1.1.0...HEAD
 [1.0.1]: https://github.com/jmsansan/audiobox/releases/tag/v1.0.1
 [1.0.0]: https://github.com/jmsansan/audiobox/releases/tag/v1.0.0

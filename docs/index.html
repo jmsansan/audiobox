@@ -440,7 +440,7 @@ try {
       <tbody>
         <tr><td>WAV, all sample formats</td><td>ffmpeg</td><td class="yes">bit-exact</td></tr>
         <tr><td>A-law / µ-law</td><td>CPython <code>audioop</code> (ITU G.711 reference)</td><td class="yes">0 mismatches in 2 028 vectors</td></tr>
-        <tr><td>IMA ADPCM</td><td>ffmpeg</td><td class="yes">sample-exact</td></tr>
+        <tr><td>IMA ADPCM</td><td>IMA reference formula; ffmpeg 8.1+ (older ffmpeg: within 64 LSB)</td><td class="yes">sample-exact</td></tr>
         <tr><td>FLAC</td><td>reference <code>flac -t</code> (verifies embedded MD5)</td><td class="yes">passes at every level</td></tr>
         <tr><td>EBU R128 loudness</td><td>ffmpeg <code>ebur128</code></td><td class="yes">within 0.03 dB</td></tr>
         <tr><td>MP3 decode</td><td>ffmpeg, 10-case format matrix</td><td class="yes">sample-aligned, 52–64 dB SNR, exact length</td></tr>
