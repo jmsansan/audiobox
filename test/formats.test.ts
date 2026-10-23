@@ -1,4 +1,4 @@
-import { test, describe } from 'node:test';
+import { test, describe, before } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
@@ -353,7 +353,7 @@ const FLAC_CLI = has('flac');
 describe('FLAC interop against the reference encoder', { skip: FLAC_CLI ? false : 'flac not installed' }, () => {
   let dir: string;
 
-  test('setup', () => {
+  before(() => {
     dir = mkdtempSync(join(tmpdir(), 'audiobox-flac-'));
   });
 
@@ -410,7 +410,7 @@ const FFMPEG = has('ffmpeg');
 describe('MP3 probing', { skip: FFMPEG ? false : 'ffmpeg not installed' }, () => {
   let dir: string;
 
-  test('setup', () => {
+  before(() => {
     dir = mkdtempSync(join(tmpdir(), 'audiobox-mp3-'));
   });
 

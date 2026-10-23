@@ -29,10 +29,12 @@
  * whitelist will ignore our delay and padding and decode a fraction of a second
  * of extra silence at each end. The audio itself is unaffected, and audiobox
  * reads its own tag, so `decode(encode(x))` is sample-exact.
+ *
+ * The `encoderName` option leaves that trade to the caller; the default stays `audiobox`.
  */
 
 import { BitWriter } from '../io/bits.ts';
-import { EncodeError } from '../errors.ts';
+import { EncodeError, InvalidArgumentError } from '../errors.ts';
 import { writeFrameHeader } from './bitstream.ts';
 import {
   mpeg1FrameLength,
@@ -45,8 +47,24 @@ import type { ChannelMode } from './frame.ts';
 /** The 9-byte encoder string. Exactly 9 bytes, space-padded. */
 export const ENCODER_STRING = 'audiobox ';
 
+/** Bytes in the encoder-name field. */
+const ENCODER_NAME_BYTES = 9;
+
 /** Both delay and padding are 12-bit fields. */
 const MAX_DELAY_FIELD = 4095;
+
+/** Space-pads an encoder name to its 9-byte field, refusing a name decoders would misread. */
+export function encoderNameField(name: string): string {
+  // Printable ASCII, as readers require; a leading space would hide the name from prefix checks.
+  const valid = typeof name === 'string' && /^[\x21-\x7e][\x20-\x7e]*$/.test(name);
+  if (!valid || name.length > ENCODER_NAME_BYTES) {
+    throw new InvalidArgumentError(
+      `MP3 encoderName must be 1 to ${ENCODER_NAME_BYTES} printable ASCII characters, ` +
+        'the first not a space.',
+    );
+  }
+  return name.padEnd(ENCODER_NAME_BYTES);
+}
 
 export interface InfoTagParameters {
   bitrateKbps: number;
@@ -62,6 +80,8 @@ export interface InfoTagParameters {
   encoderDelay: number;
   /** Samples of silence after the last real sample. */
   encoderPadding: number;
+  /** The space-padded 9-byte encoder-name field, as {@link encoderNameField} returns it. */
+  encoderField: string;
   /** Variable bitrate: tag as `Xing` and carry a seek table. */
   vbr?: boolean;
   /** The assembled audio frames, needed to build the seek table. */
@@ -119,7 +139,7 @@ export function writeInfoTag(params: InfoTagParameters): Uint8Array {
   // and preset descriptors, and the two CRCs all describe choices this encoder
   // does not make, and inventing values for them would be worse than absent.
   const lameStart = p;
-  p = writeAscii(frame, p, ENCODER_STRING);
+  p = writeAscii(frame, p, params.encoderField);
 
   // Bytes 9-20 of the extension: VBR method, lowpass, replay gain, flags.
   // Byte 9's low nibble is the VBR method; 1 means constant bitrate.

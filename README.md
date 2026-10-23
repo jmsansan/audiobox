@@ -284,6 +284,10 @@ await encode(audio, 'mp3',  { vbr: true, quality: 2 });   // bitrate becomes a c
 
 MP3 options: `bitrate` (32–320, default 192), `vbr`, `quality` (0 best … 9 smallest, default 4),
 and `tag` to suppress the leading Xing/Info frame when the output is a fragment to be concatenated.
+`encoderName` (1 to 9 printable ASCII characters, default `audiobox`) sets the name in that frame.
+ffmpeg trims the priming and padding samples only for `LAME`, `Lavf` or `Lavc`; with any other
+name it plays a little extra silence at each end. `LAME` names software that did not write the
+file, so choose it knowingly.
 
 ### `Audio`
 

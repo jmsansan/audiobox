@@ -44,7 +44,7 @@ import {
   mpeg1FrameLength,
   mpeg1SideInfoSize,
 } from './frame.ts';
-import { writeInfoTag, infoTagFrameLength } from './xing.ts';
+import { writeInfoTag, infoTagFrameLength, encoderNameField, ENCODER_STRING } from './xing.ts';
 import {
   PsychoacousticModel,
   detectAttacks,
@@ -107,6 +107,11 @@ export interface Mp3EncodeOptions {
    * into a larger stream, where a tag partway through would misreport the whole.
    */
   tag?: boolean;
+  /**
+   * Encoder name in the tag: 1 to 9 printable ASCII characters, default `audiobox`. ffmpeg
+   * applies the tag's delay and padding only for names it knows, like `LAME`.
+   */
+  encoderName?: string;
   /**
    * Shape quantisation noise using the psychoacoustic model. On by default.
    *
@@ -210,6 +215,8 @@ export function encodeMp3Channels(
         `Supported: ${MPEG1_LAYER3_BITRATE_VALUES.join(', ')}.`,
     );
   }
+
+  const encoderField = encoderNameField(options.encoderName ?? ENCODER_STRING);
 
   const length = channels[0]!.length;
   for (const channel of channels) {
@@ -426,6 +433,7 @@ export function encodeMp3Channels(
     streamBytes: tagBytes + audio.byteLength,
     encoderDelay: ENCODER_DELAY,
     encoderPadding: Math.max(0, encoderPadding),
+    encoderField,
     vbr,
     // The seek table only means something when byte position and time are not
     // proportional, which is exactly the variable-bitrate case.
