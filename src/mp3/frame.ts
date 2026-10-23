@@ -293,10 +293,10 @@ export function readVbrHeader(
     // LAME tag at all — is handled instead by checking the values: a real
     // encoder delay is a filterbank's worth of samples, not thousands.
     if (p + 24 <= data.byteLength) {
-      const printable = isPrintable(data, p, 9);
+      const named = isEncoderName(data, p);
       const delayOffset = p + 21;
 
-      if (printable && delayOffset + 3 <= data.byteLength) {
+      if (named && delayOffset + 3 <= data.byteLength) {
         const delay = (data[delayOffset]! << 4) | (data[delayOffset + 1]! >> 4);
         const padding = ((data[delayOffset + 1]! & 0x0f) << 8) | data[delayOffset + 2]!;
 
@@ -328,14 +328,15 @@ export function readVbrHeader(
   return null;
 }
 
-/** True when `count` bytes from `offset` are all printable ASCII or spaces. */
-function isPrintable(data: Uint8Array, offset: number, count: number): boolean {
-  if (offset + count > data.byteLength) return false;
-  for (let i = 0; i < count; i++) {
+/** True for a 9-byte encoder name: printable ASCII, NUL-padded as LAME pads short names. */
+function isEncoderName(data: Uint8Array, offset: number): boolean {
+  let length = 9;
+  while (length > 0 && data[offset + length - 1] === 0) length--;
+  for (let i = 0; i < length; i++) {
     const byte = data[offset + i]!;
     if (byte < 0x20 || byte > 0x7e) return false;
   }
-  return true;
+  return length > 0;
 }
 
 function readU32(data: Uint8Array, offset: number): number {

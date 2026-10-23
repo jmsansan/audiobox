@@ -38,6 +38,7 @@ import {
   mpeg1FrameLength,
   mpeg1SideInfoSize,
   MPEG1_LAYER3_BITRATES,
+  MPEG1_LAYER3_BITRATE_VALUES,
   MPEG1_SAMPLE_RATES,
 } from './frame.ts';
 import type { ChannelMode } from './frame.ts';
@@ -64,19 +65,15 @@ export interface InfoTagParameters {
   encoderPadding: number;
   /** Variable bitrate: tag as `Xing` and carry a seek table. */
   vbr?: boolean;
-  /** The assembled audio frames, needed to build the seek table. */
-  frames?: Uint8Array;
+  /** The assembled audio frames, for the music CRC and the VBR seek table. */
+  frames: Uint8Array;
   /** Size of this tag frame, since it precedes `frames` in the stream. */
   tagBytes?: number;
 }
 
 /**
- * Builds the complete leading frame, header and tag together.
- *
- * `Info` rather than `Xing` because the stream is constant-bitrate; the two are
- * the same structure, and the name is how a decoder tells CBR from VBR without
- * scanning. No seek table: it only helps VBR, where byte position and time are
- * not proportional.
+ * Builds the complete leading frame, header and tag together: `Info` for a
+ * constant-bitrate stream, `Xing` with a seek table for a variable-bitrate one.
  */
 export function writeInfoTag(params: InfoTagParameters): Uint8Array {
   const { bitrateKbps, sampleRate, channels, encoderDelay, encoderPadding } = params;
@@ -102,7 +99,7 @@ export function writeInfoTag(params: InfoTagParameters): Uint8Array {
 
   // `Info` and `Xing` are the same structure; the name is how a decoder tells
   // constant from variable bitrate without scanning the whole file.
-  const seekTable = params.vbr && params.frames ? buildSeekTable(params) : null;
+  const seekTable = params.vbr ? buildSeekTable(params) : null;
 
   p = writeAscii(frame, p, params.vbr ? 'Xing' : 'Info');
   p = writeU32(frame, p, seekTable ? 0x0007 : 0x0003);
@@ -114,25 +111,34 @@ export function writeInfoTag(params: InfoTagParameters): Uint8Array {
   }
 
   // --- LAME tag extension ---------------------------------------------------
-  // Only the fields that carry meaning here are filled in. The rest are zero,
-  // which is what every decoder treats as "not reported": replay gain, the ATH
-  // and preset descriptors, and the two CRCs all describe choices this encoder
-  // does not make, and inventing values for them would be worse than absent.
+  // Lowpass, replay gain and the remaining descriptors stay zero, which readers
+  // take as "not reported".
   const lameStart = p;
   p = writeAscii(frame, p, ENCODER_STRING);
 
   // Bytes 9-20 of the extension: VBR method, lowpass, replay gain, flags.
-  // Byte 9's low nibble is the VBR method; 1 means constant bitrate.
-  frame[lameStart + 9] = 0x01;
-  frame[lameStart + 20] = Math.min(255, bitrateKbps);
+  // Byte 9's low nibble is the VBR method: 1 constant, 4 variable bitrate.
+  frame[lameStart + 9] = params.vbr ? 0x04 : 0x01;
+  // Byte 20 is the bitrate for CBR, and for VBR the lowest one a frame may take.
+  const lowestKbps = params.vbr ? MPEG1_LAYER3_BITRATE_VALUES[0]! : bitrateKbps;
+  frame[lameStart + 20] = Math.min(255, lowestKbps);
 
   // Bytes 21-23: 12 bits of delay followed by 12 bits of padding.
   frame[lameStart + 21] = (encoderDelay >> 4) & 0xff;
   frame[lameStart + 22] = ((encoderDelay & 0x0f) << 4) | ((encoderPadding >> 8) & 0x0f);
   frame[lameStart + 23] = encoderPadding & 0xff;
 
-  // Bytes 28-31: length of the audio data, excluding this frame.
-  writeU32(frame, lameStart + 28, Math.max(0, params.streamBytes - frameBytes));
+  // Byte 24 holds the stereo mode in bits 2-4 and the source rate in bits 6-7.
+  // Left zero, it would claim a mono source at 32 kHz or below.
+  const stereoMode = ['mono', 'stereo', 'dual', 'joint'].indexOf(params.mode);
+  const sourceRate = [32000, 44100, 48000].indexOf(sampleRate);
+  frame[lameStart + 24] = (stereoMode << 2) | (sourceRate << 6);
+
+  // Bytes 28-31: stream length from this frame on, as LAME and ffmpeg count it.
+  writeU32(frame, lameStart + 28, params.streamBytes);
+  // Bytes 32-35: CRC of the audio frames, then CRC of this frame up to that field.
+  writeU16(frame, lameStart + 32, lameCrc(params.frames));
+  writeU16(frame, lameStart + 34, lameCrc(frame.subarray(0, lameStart + 34)));
 
   return frame;
 }
@@ -152,7 +158,7 @@ export function writeInfoTag(params: InfoTagParameters): Uint8Array {
 function buildSeekTable(params: InfoTagParameters): Uint8Array | null {
   const audio = params.frames;
   const tagBytes = params.tagBytes ?? 0;
-  if (!audio || params.frameCount <= 0) return null;
+  if (params.frameCount <= 0) return null;
 
   // Walk the frames once, recording where each begins.
   const offsets = new Int32Array(params.frameCount + 1);
@@ -231,6 +237,22 @@ export function infoTagFrameLength(
 function writeAscii(target: Uint8Array, offset: number, text: string): number {
   for (let i = 0; i < text.length; i++) target[offset + i] = text.charCodeAt(i) & 0x7f;
   return offset + text.length;
+}
+
+/** CRC-16 with the reflected polynomial 0xA001, as LAME and ffmpeg compute both tag CRCs. */
+export function lameCrc(data: Uint8Array): number {
+  let crc = 0;
+  for (let i = 0; i < data.length; i++) {
+    crc ^= data[i]!;
+    for (let bit = 0; bit < 8; bit++) crc = crc & 1 ? (crc >>> 1) ^ 0xa001 : crc >>> 1;
+  }
+  return crc;
+}
+
+function writeU16(target: Uint8Array, offset: number, value: number): number {
+  target[offset] = (value >>> 8) & 0xff;
+  target[offset + 1] = value & 0xff;
+  return offset + 2;
 }
 
 function writeU32(target: Uint8Array, offset: number, value: number): number {

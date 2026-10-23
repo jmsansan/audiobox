@@ -5,6 +5,25 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- **MP3 VBR tag.** The LAME extension of a variable-bitrate stream claimed constant bitrate,
+  so mpg123 reported such files as CBR. Its bitrate byte now holds the lowest bitrate a frame
+  may take, as the layout defines for VBR, not the highest.
+- **MP3 tag channel mode.** Byte 24 of the LAME extension stayed zero, which the layout reads
+  as a mono source at 32 kHz or below. It now holds the channel mode and the sample rate.
+- **MP3 tag CRCs.** The music and tag CRCs of the LAME extension were zero. Both are now
+  computed, as LAME does. Apple Core Audio checks the tag CRC before it trims the priming and
+  padding, so `afconvert` now decodes audiobox MP3s to the exact input length. ffmpeg checks it
+  before it reports the encoder name.
+- **MP3 tag music length.** Bytes 28-31 of the LAME extension left out the tag frame. They now
+  count from it, as LAME and ffmpeg do, so they equal the Xing byte count.
+- **MP3 gapless decoding of LAME files with a short encoder name.** The reader accepted only
+  printable bytes in the 9-byte name, but LAME 4.0 pads `LAME4.0 ` with a NUL byte. Such files
+  decoded with the priming and padding left in. Trailing NUL bytes are now accepted.
+
 ## [1.1.0] — 2026-08-04
 
 ### Added
@@ -97,5 +116,6 @@ First release.
 - Streaming resampling processes each chunk independently, so filter state does not carry
   across chunk boundaries.
 
+[Unreleased]: https://github.com/jmsansan/audiobox/compare/v1.1.0...HEAD
 [1.0.1]: https://github.com/jmsansan/audiobox/releases/tag/v1.0.1
 [1.0.0]: https://github.com/jmsansan/audiobox/releases/tag/v1.0.0

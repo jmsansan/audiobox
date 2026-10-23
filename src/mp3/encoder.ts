@@ -427,9 +427,7 @@ export function encodeMp3Channels(
     encoderDelay: ENCODER_DELAY,
     encoderPadding: Math.max(0, encoderPadding),
     vbr,
-    // The seek table only means something when byte position and time are not
-    // proportional, which is exactly the variable-bitrate case.
-    frames: vbr ? audio : undefined,
+    frames: audio,
     tagBytes,
   });
 
